@@ -1,0 +1,24 @@
+{
+	"name": "idempotent-payments",
+	"version": "1.0.0",
+	"description": "idempotent payments",
+	"scripts": {
+		"format": "prettier --ignore-path .prettierignore --write .",
+		"lint": "eslint --max-warnings 0 "
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"packageManager": "pnpm@10.12.1",
+	"devDependencies": {
+		"prettier": "^3.6.2"
+	},
+	"dependencies": {
+		"@eslint/compat": "^1.3.1",
+		"@typescript-eslint/eslint-plugin": "^8.38.0",
+		"@typescript-eslint/parser": "^8.38.0",
+		"eslint": "^9.32.0",
+		"eslint-plugin-import": "^2.32.0",
+		"eslint-plugin-unused-imports": "^4.1.4"
+	}
+}

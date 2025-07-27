@@ -1,0 +1,36 @@
+{
+	"env": {
+		"node": true,
+		"browser": true,
+		"es6": true,
+		"jest": true
+	},
+	"extends": [
+		"eslint:recommended",
+		"plugin:import/errors",
+		"plugin:import/typescript",
+		"plugin:@typescript-eslint/recommended-requiring-type-checking"
+	],
+	"rules": {
+		"@typescript-eslint/non-nullable-type-assertion-style": "error",
+		"@typescript-eslint/prefer-optional-chain": "error",
+		"@typescript-eslint/no-misused-promises": [
+			"error",
+			{
+				"checksVoidReturn": {
+					"attributes": false,
+					"properties": false
+				}
+			}
+		],
+		"@typescript-eslint/no-unused-vars": "error"
+	},
+	"overrides": [
+		{
+			"files": ["*.ts"]
+		}
+	],
+	"ignorePatterns": [
+		"**/*.js"
+	]
+}

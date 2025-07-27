@@ -2,6 +2,7 @@ import globals from 'globals';
 import js from '@eslint/js';
 import ts from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
+import stylistic from '@stylistic/eslint-plugin'
 
 export default [
 	{
@@ -40,11 +41,43 @@ export default [
 		files: ['backend/**/*.ts', 'infrastructure/**/*.ts'],
 		plugins: {
 			'@typescript-eslint': ts,
+			'@stylistic': stylistic,
 		},
 		rules: {
-			'no-console': 'warn',
+			'no-console': [
+				'error',
+				{
+					allow: ['warn', 'error']
+				}
+			],
 			'no-debugger': 'error',
-			'@typescript-eslint/no-unused-vars': 'error'
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{
+					vars: 'all',
+					args: 'after-used',
+					caughtErrors: 'none',
+					ignoreRestSiblings: true,
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					destructuredArrayIgnorePattern: '^_',
+				},
+			],
+			'semi': 'off',
+
+			// https://eslint.style/rules/
+        	'@stylistic/semi': ['error', 'always'],
+			'@stylistic/no-extra-semi': 'error',
+			'@stylistic/arrow-parens': ['error', 'as-needed'],
+			'@stylistic/quotes': [
+				'error',
+				'single',
+				{
+					'allowTemplateLiterals': 'always'
+				}
+			]
+
 		},
 		ignores: [
 			'**/*.js',

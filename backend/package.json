@@ -1,0 +1,30 @@
+{
+	"name": "backend",
+	"version": "1.0.0",
+	"description": "Lambdas functions",
+	"main": "index.js",
+	"scripts": {
+		"tsc": "tsc",
+		"create-bills": "esbuild src/lambdas/create-bills/main.ts --bundle --platform=node --outfile=production/create-bills/main.js",
+		"pay-bills": "esbuild src/lambdas/pay-bills/main.ts --bundle --platform=node --outfile=production/pay-bills/main.js",
+		"show-bill-details": "esbuild src/lambdas/show-bill-details/main.ts --bundle --platform=node --outfile=production/show-bill-details/main.js",
+		"build:prod": "pnpm run create-bills && pnpm run pay-bills && pnpm run show-bill-details"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"packageManager": "pnpm@10.12.1",
+	"dependencies": {
+		"@aws-lambda-powertools/idempotency": "^2.24.0",
+		"@aws-sdk/client-dynamodb": "^3.848.0",
+		"@types/aws-lambda": "^8.10.152",
+		"lib-dynamodb": "github:aws-sdk/lib-dynamodb",
+		"typescript": "5.9.1-rc",
+		"zod": "^4.0.10"
+	},
+	"devDependencies": {
+		"esbuild": "^0.25.8",
+		"tsx": "^4.20.3",
+		"@types/node": "^24.1.0"
+	}
+}

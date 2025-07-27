@@ -1,0 +1,4 @@
+node_modules
+production
+pnpm-lock.yaml
+cdk.out

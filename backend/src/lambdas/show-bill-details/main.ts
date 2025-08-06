@@ -6,26 +6,29 @@ import {
 import { env } from 'node:process';
 import { Response } from '../../utils/types';
 import { NPERequestValidator } from '../../utils/validator';
-import type { APIGatewayProxyEventV2, } from 'aws-lambda'
-import { ZodError } from 'zod';
+import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
-import { R } from '../../utils/transform'
-
+import { R } from '../../utils/transform';
 
 const client = new DynamoDBClient({ region: env.REGION });
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<Response> => {
-
 	try {
-
-		if (!event.body) {
-			return { statusCode: 400, message: 'invalid request, ' };
-		}
+		/**
+		 * @description
+		 * Check if the request body is present
+		 */
+		if (!event.body) return R(400, { message: 'invalid request,' });
 
 		/**
-		 *
+		 * @description
+		 * Parse the incoming request body
 		 */
-		const result =  NPERequestValidator.safeParse(JSON.parse(event?.body ?? '{}'));
+		const result = NPERequestValidator.safeParse(
+			JSON.parse(event?.body ?? '{}')
+		);
+
+		if (result.error) return R(400, { message: result.error.flatten() });
 
 		/**
 		 *
@@ -51,10 +54,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<Response> 
 	} catch (error: any) {
 		console.error(error);
 
-		if (error.cause instanceof ZodError) {
-			return R(400, { message: error.cause.flatten()});
-		}
-
-		return R(500, { message: 'Server Error', });
+		return R(500, { message: 'Server Error' });
 	}
 };

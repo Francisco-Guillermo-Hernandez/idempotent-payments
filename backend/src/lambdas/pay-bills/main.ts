@@ -15,15 +15,10 @@ import { Metrics } from '@aws-lambda-powertools/metrics';
 import { Tracer } from '@aws-lambda-powertools/tracer';
 import type { ParsedResult } from '@aws-lambda-powertools/parser/types';
 import type { APIGatewayProxyEventV2 } from '@aws-lambda-powertools/parser/types';
-// import { z } from 'zod';
-// import { APIGatewayProxyEventV2Schema } from '@aws-lambda-powertools/parser/schemas/api-gatewayv2';
-
 
 
 const config = new IdempotencyConfig({
-		// eventKeyJmesPath: 'powertools_json(body).["npe"]',
 		expiresAfterSeconds: (5 * 60),
-
 	}),
 	persistenceStore = new DynamoDBPersistenceLayer({
 		clientConfig: { region: env.REGION },
@@ -40,10 +35,11 @@ const config = new IdempotencyConfig({
 class Lambda implements LambdaInterface {
 
 	@idempotent({ config: config, persistenceStore })
-    public async process(npe: string) {
+    public async savePayment(npe: string) {
 		const client = new DynamoDBClient({ region: env.REGION });
 
 		//https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
+		//https://docs.powertools.aws.dev/lambda/typescript/latest/features/idempotency/#lambda-timeouts
 
 		try {
 			const params: UpdateItemCommandInput = {
@@ -80,20 +76,21 @@ class Lambda implements LambdaInterface {
 			}
 		}
 	}
+	
 
-
-  	// @logger.injectLambdaContext()
-  	// @metrics.logMetrics()
-	// @tracer.captureLambdaHandler()
+	// @logger.injectLambdaContext()
+    // @metrics.logMetrics()
+    // @tracer.captureLambdaHandler()
 	@parser({ schema: payBillsRequestBodySchema, safeParse: true })
-	public async handler(event: ParsedResult<APIGatewayProxyEventV2, payBillsRequestBodyType>, _context: Context): Promise<Response> {
+	public async handler(event: ParsedResult<APIGatewayProxyEventV2, payBillsRequestBodyType>, context: Context): Promise<Response> {
 
 		try {
-
 			//tracer.getSegment();
+			config.registerLambdaContext(context);
 
 			if (event.success) {
-				const { paymentId } = await this.process(event.data.body.npe);
+
+				const { paymentId } = await this.savePayment(event.data.body.npe);
 				return R(200, { message: 'Success', paymentId });
 			} else {
 				return R(400, {

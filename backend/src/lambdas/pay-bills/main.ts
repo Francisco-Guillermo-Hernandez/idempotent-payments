@@ -1,79 +1,124 @@
-import {
-	IdempotencyConfig,
-	makeIdempotent,
-} from '@aws-lambda-powertools/idempotency';
+import { IdempotencyConfig, idempotent } from '@aws-lambda-powertools/idempotency';
 import { DynamoDBPersistenceLayer } from '@aws-lambda-powertools/idempotency/dynamodb';
-import {
-	DynamoDBClient,
-	UpdateItemCommand,
-	UpdateItemCommandInput,
-} from '@aws-sdk/client-dynamodb';
-
+import { parser } from '@aws-lambda-powertools/parser';
+import type { LambdaInterface, } from '@aws-lambda-powertools/commons/types';
+import type { Context } from 'aws-lambda';
+import type { payBillsRequestBodyType } from '../../utils/validator';
+import { payBillsRequestBodySchema } from '../../utils/validator';
+import type { Response } from '../../utils/types';
+import { R } from '../../utils/transform';
 import { randomUUID } from 'node:crypto';
-// import type { Context } from 'aws-lambda';
-import type { Request, Response, SubscriptionResult } from '../../utils/types';
-import { NPERequestValidator } from '../../utils/validator';
-import { R } from '../../utils/transform'
 import { env } from 'node:process';
+import { DynamoDBClient, UpdateItemCommandInput, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+import { Logger } from '@aws-lambda-powertools/logger';
+import { Metrics } from '@aws-lambda-powertools/metrics';
+import { Tracer } from '@aws-lambda-powertools/tracer';
+import type { ParsedResult } from '@aws-lambda-powertools/parser/types';
+import type { APIGatewayProxyEventV2 } from '@aws-lambda-powertools/parser/types';
+// import { z } from 'zod';
+// import { APIGatewayProxyEventV2Schema } from '@aws-lambda-powertools/parser/schemas/api-gatewayv2';
+
+
 
 const config = new IdempotencyConfig({
-		eventKeyJmesPath: 'powertools_json(body).["npe"]',
+		// eventKeyJmesPath: 'powertools_json(body).["npe"]',
+		expiresAfterSeconds: (5 * 60),
+
 	}),
 	persistenceStore = new DynamoDBPersistenceLayer({
 		clientConfig: { region: env.REGION },
-		tableName: env.PAYMENTS_TABLE_NAME,
-	}),
-	triggerPayment = async (npe: string): Promise<SubscriptionResult> => {
-		console.info(npe);
+		tableName: env.IDEMPOTENCY_TABLE_NAME,
 
+	}),
+	_logger = new Logger(),
+ 	_tracer = new Tracer({ serviceName: 'serverlessAirline' }),
+	_metrics = new Metrics({ namespace: 'serverlessAirline', serviceName: 'pay-bills'});
+
+/**
+ *
+ */
+class Lambda implements LambdaInterface {
+
+	@idempotent({ config: config, persistenceStore })
+    public async process(npe: string) {
 		const client = new DynamoDBClient({ region: env.REGION });
+
+		//https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 		try {
 			const params: UpdateItemCommandInput = {
 				TableName: env.PAYMENTS_TABLE_NAME,
 				Key: {
-					PartitionKey: { S: 'npe' },
+					npe: { S: npe },
 				},
 				ExpressionAttributeNames: {
 					'#PS': 'PaymentStatus',
 					'#UD': 'UpdatedDate',
 				},
 				UpdateExpression: 'SET #PS = :status, #UD = :date',
+				ConditionExpression: 'attribute_exists(npe) AND #PS = :defaultStatus',
 				ExpressionAttributeValues: {
 					':status': { BOOL: true },
-					':date': {
-						N: String(Math.floor(new Date().getTime() / 1000)),
-					},
+					':date': { N: String(Math.floor(new Date().getTime() / 1000)), },
+					':defaultStatus': { BOOL: false },
 				},
+				ReturnValues: 'ALL_NEW'
 			};
 
-			await client.send(new UpdateItemCommand(params));
+			const { Attributes } = await client.send(new UpdateItemCommand(params));
 			return {
-				id: randomUUID(),
+				paymentId: randomUUID(),
+				data: Attributes,
 			};
 		} catch (error: any) {
 			console.error(error);
 
-			return {
-				id: '',
-			};
+			if (error.name === 'ConditionalCheckFailedException') {
+				throw new Error('ConditionExpression', { cause: 'ConditionalCheckFailedException' });
+			} else {
+				throw new Error(error);
+			}
 		}
-	};
-
-export const handler = makeIdempotent(
-	async (request: Request): Promise<Response> => {
-		try {
-			const result = NPERequestValidator.parse(request);
-			const payment = await triggerPayment(result.npe);
-
-			return R(200, { message: 'Success', paymentId: payment.id,});
-		} catch (error: any) {
-			console.error(error);
-			return R(500, { message: 'Server Error', });
-		}
-	},
-	{
-		persistenceStore,
-		config,
 	}
-);
+
+
+  	// @logger.injectLambdaContext()
+  	// @metrics.logMetrics()
+	// @tracer.captureLambdaHandler()
+	@parser({ schema: payBillsRequestBodySchema, safeParse: true })
+	public async handler(event: ParsedResult<APIGatewayProxyEventV2, payBillsRequestBodyType>, _context: Context): Promise<Response> {
+
+		try {
+
+			//tracer.getSegment();
+
+			if (event.success) {
+				const { paymentId } = await this.process(event.data.body.npe);
+				return R(200, { message: 'Success', paymentId });
+			} else {
+				return R(400, {
+					message: 'Wrong input data',
+					error: event.error ?? '',
+					cause: event.error.cause ?? '',
+				});
+			}
+		} catch (error: any) {
+			console.error(error);
+			console.error(error.cause);
+
+			if (error.cause === 'ConditionalCheckFailedException') {
+				return R(412, { message: 'Precondition Failed' });
+        	} else {
+				return R(500, { message: 'Server Error' });
+			}
+		}
+	}
+}
+
+const λ = new Lambda();
+
+/**
+ * @description Binding your handler method allows your handler to access this.
+ */
+export const handler = λ.handler.bind(λ);
+

@@ -1,28 +1,34 @@
-import { StackProps, Stack, RemovalPolicy, Duration, CfnOutput } from 'aws-cdk-lib';
+import {
+	StackProps,
+	Stack,
+	RemovalPolicy,
+	Duration,
+	CfnOutput,
+} from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 import { TableV2, TableClass, AttributeType } from 'aws-cdk-lib/aws-dynamodb';
 import {
-	ManagedPolicy,
-	PolicyDocument,
-	AnyPrincipal,
 	ServicePrincipal,
-	AccountRootPrincipal,
 	Role,
 	PolicyStatement,
 	Effect,
+	ManagedPolicy,
 } from 'aws-cdk-lib/aws-iam';
 import { Runtime, Code, Function } from 'aws-cdk-lib/aws-lambda';
 import { join } from 'path';
-import { LambdaIntegration, RestApi } from 'aws-cdk-lib/aws-apigateway';
-import { addCors } from './mock';
+// import { LambdaIntegration, RestApi, HttpIntegration, PassthroughBehavior, } from 'aws-cdk-lib/aws-apigateway';
+import { HttpApi, CorsHttpMethod, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+
+
+const distPath = '../../backend/production/';
 
 export class InfrastructureStack extends Stack {
 	constructor(scope: Construct, id: string, props?: StackProps) {
 		super(scope, id, props);
 
 		new TableV2(this, 'providers', {
-			tableName: 'providers',
 			partitionKey: {
 				name: 'id',
 				type: AttributeType.STRING,
@@ -42,7 +48,6 @@ export class InfrastructureStack extends Stack {
 		});
 
 		const billsTable = new TableV2(this, 'bills', {
-			tableName: 'bills',
 			partitionKey: {
 				name: 'npe',
 				type: AttributeType.STRING,
@@ -55,10 +60,17 @@ export class InfrastructureStack extends Stack {
 			contributorInsights: false,
 			removalPolicy: RemovalPolicy.DESTROY,
 			deletionProtection: false, //
-			tags: [
-				{ key: 'Category', value: 'Electronic payment' },
-			],
+			tags: [{ key: 'Category', value: 'Electronic payment' }],
 		});
+
+		const idempotencyTable = new TableV2(this, 'idempotency', {
+      		partitionKey: {
+        		name: 'id',
+        		type: AttributeType.STRING,
+      		},
+      		timeToLiveAttribute: 'expiration',
+			tags: [{ key: 'Category', value: 'Electronic payment' }],
+    	});
 
 		/**
 		 * @description Policies
@@ -66,25 +78,15 @@ export class InfrastructureStack extends Stack {
 
 		const createAndUpdateBillsPolicy = new PolicyStatement({
 			effect: Effect.ALLOW,
-			resources: [billsTable.tableArn],
-			// principals: [new AnyPrincipal()],
-			actions: [
-				'dynamodb:PutItem',
-				'dynamodb:UpdateItem',
-			],
+			resources: [billsTable.tableArn, idempotencyTable.tableArn],
+			actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem'],
 		});
 
 		const listBillsPolicy = new PolicyStatement({
 			effect: Effect.ALLOW,
 			resources: [billsTable.tableArn],
-			// principals: [new AnyPrincipal()],
-			actions: [
-				'dynamodb:GetItem',
-				'dynamodb:Query',
-				'dynamodb:Scan',
-			],
+			actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
 		});
-
 
 		/**
 		 * @description Roles
@@ -93,13 +95,6 @@ export class InfrastructureStack extends Stack {
 			assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
 			roleName: 'BillsTableWriterRole',
 			description: 'Role allowing create/add/update items in billsTable',
-			// inlinePolicies: {
-			// 	BillsTableWritePolicy: new PolicyDocument({
-			// 		statements: [
-
-			// 		],
-			// 	}),
-			// },
 		});
 
 		const billsTableReaderRole = new Role(this, 'BillsTableReaderRole', {
@@ -112,58 +107,87 @@ export class InfrastructureStack extends Stack {
 		 * @description Attach policies to roles
 		 */
 
-		// billsTableWriterRole.addManagedPolicy(
-      	// 	ManagedPolicy.fromAwsManagedPolicyName('AWSLambdaBasicExecutionRole'),
-		// 	// ManagedPolicy.fromManagedPolicyArn(this, 'AWSLambdaBasicExecutionRole', 'arn:aws:iam::aws:policy/AWSLambdaBasicExecutionRole')
-    	// );
-		// billsTableWriterRole.addToPolicy(createAndUpdateBillsPolicy);
+		billsTableWriterRole.addManagedPolicy(
+			ManagedPolicy.fromAwsManagedPolicyName(
+				'service-role/AWSLambdaBasicExecutionRole'
+			)
+		);
 
+		billsTableWriterRole.addToPolicy(createAndUpdateBillsPolicy);
 
-		// billsTableReaderRole.addManagedPolicy(
-		// 	ManagedPolicy.fromAwsManagedPolicyName('AWSLambdaBasicExecutionRole'),
-		// 	// ManagedPolicy.fromManagedPolicyArn(this, 'AWSLambdaBasicExecutionRole', 'arn:aws:iam::aws:policy/AWSLambdaBasicExecutionRole')
-    	// );
-		// billsTableReaderRole.addToPolicy(listBillsPolicy);
+		billsTableReaderRole.addManagedPolicy(
+			ManagedPolicy.fromAwsManagedPolicyName(
+				'service-role/AWSLambdaBasicExecutionRole'
+			)
+		);
+		billsTableReaderRole.addToPolicy(listBillsPolicy);
 
-		//arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-		//arn:aws:iam::aws:policy/AWSLambdaBasicExecutionRole
-		const createBillsLambdaFunction = new Function(this, 'create-bills-lambda-function', {
-			runtime: Runtime.NODEJS_22_X,
-			handler: 'main.handler',
-			code: Code.fromAsset(join(__dirname, '../../backend/production/create-bills/')),
-			memorySize: 128,
-			timeout: Duration.minutes(1),
-			// role: billsTableWriterRole,
-			environment: {
-				ENV: 'production',
-				PAYMENTS_TABLE_NAME: billsTable.tableName,
-			},
-		});
+		const createBillsLambdaFunction = new Function(
+			this,
+			'create-bills-lambda-function',
+			{
+				runtime: Runtime.NODEJS_22_X,
+				handler: 'main.handler',
+				code: Code.fromAsset(
+					join(__dirname, distPath, 'create-bills/')
+				),
+				memorySize: 128,
+				timeout: Duration.minutes(1),
+				role: billsTableWriterRole,
+				environment: {
+					ENV: 'production',
+					PAYMENTS_TABLE_NAME: billsTable.tableName,
+				},
+			}
+		);
 
-		const showBillsDetailsLambdaFunction = new Function(this, 'show-bill-details-lambda-function', {
-			runtime: Runtime.NODEJS_22_X,
-			handler: 'main.handler',
-			code: Code.fromAsset(join(__dirname, '../../backend/production/show-bill-details')),
-			memorySize: 128,
-			timeout: Duration.minutes(1),
-			// role: billsTableReaderRole,
-			environment: {
-				ENV: 'production',
-				PAYMENTS_TABLE_NAME: billsTable.tableName
-			},
-		});
+		const showBillsDetailsLambdaFunction = new Function(
+			this,
+			'show-bill-details-lambda-function',
+			{
+				runtime: Runtime.NODEJS_22_X,
+				handler: 'main.handler',
+				code: Code.fromAsset(
+					join(__dirname, distPath, 'show-bill-details')
+				),
+				memorySize: 128,
+				timeout: Duration.minutes(1),
+				role: billsTableReaderRole,
+				environment: {
+					ENV: 'production',
+					PAYMENTS_TABLE_NAME: billsTable.tableName,
+				},
+			}
+		);
 
-		const payBillsLambdaFunction = new Function(this, 'pay-bills-lambda-function', {
-			runtime: Runtime.NODEJS_22_X,
-			handler: 'main.handler',
-			code: Code.fromAsset(join(__dirname, '../../backend/production/pay-bills')),
-			memorySize: 128,
-			timeout: Duration.minutes(1),
-			// role: billsTableWriterRole,
-			environment: {
-				ENV: 'production',
-				PAYMENTS_TABLE_NAME: billsTable.tableName
-			},
+		const payBillsLambdaFunction = new Function(
+			this,
+			'pay-bills-lambda-function',
+			{
+				runtime: Runtime.NODEJS_22_X,
+				handler: 'main.handler',
+				code: Code.fromAsset(join(__dirname, distPath, 'pay-bills')),
+				memorySize: 128,
+				timeout: Duration.minutes(1),
+				role: billsTableWriterRole,
+				environment: {
+					ENV: 'production',
+					PAYMENTS_TABLE_NAME: billsTable.tableName,
+					IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
+				},
+			}
+		);
+
+		/**
+		 * @description
+		 */
+		const httpApi = new HttpApi(this, 'bills-api', {
+			description: 'HTTP API Gateway for a collection of Lambda functions',
+			corsPreflight: {
+				allowHeaders: ['*'],
+				allowOrigins: ['*'], // Only for development purposes
+				allowMethods: [CorsHttpMethod.OPTIONS, CorsHttpMethod.POST, CorsHttpMethod.GET]
+			}
 		});
 
 
@@ -171,34 +195,29 @@ export class InfrastructureStack extends Stack {
 		 * @description
 		 */
 
-		showBillsDetailsLambdaFunction.addToRolePolicy(listBillsPolicy);
-
-		const api = new RestApi(this, 'bills-api', {
-			restApiName: 'bills-api',
+		httpApi.addRoutes({
+			path: '/bills/create',
+			methods: [HttpMethod.POST],
+			integration: new HttpLambdaIntegration('createBillsLambdaFunctionLambdaIntegration', createBillsLambdaFunction)
 		});
 
-		/**
-		 * @description
-		 */
-		const bills = api.root.addResource('bill');
+		httpApi.addRoutes({
+			path: '/bills/show',
+			methods: [HttpMethod.POST],
+			integration: new HttpLambdaIntegration('showBillsDetailsLambdaFunctionLambdaIntegration', showBillsDetailsLambdaFunction)
+		});
 
-		const pay = bills.addResource('pay');
-		pay.addMethod('POST', new LambdaIntegration(payBillsLambdaFunction));
-		addCors(pay);
-
-		const create = bills.addResource('create');
-		create.addMethod('POST', new LambdaIntegration(createBillsLambdaFunction))
-		addCors(create);
-
-		const showDetails = bills.addResource('show-details');
-		showDetails.addMethod('POST', new LambdaIntegration(showBillsDetailsLambdaFunction))
-		addCors(showDetails);
+		httpApi.addRoutes({
+			path: '/bills/pay',
+			methods: [HttpMethod.POST],
+			integration: new HttpLambdaIntegration('PayBillsLambdaFunctionHttpLambdaIntegration', payBillsLambdaFunction)
+		});
 
 		/**
 		 * @description
 		 */
 		new CfnOutput(this, 'ApiUrl', {
-			value: api.url
+			value: httpApi.apiEndpoint,
 		});
 	}
 }

@@ -6,7 +6,7 @@ import {
 import { marshall } from '@aws-sdk/util-dynamodb';
 import { env } from 'node:process';
 import { Response } from '../../utils/types';
-import { R } from '../../utils/transform'
+import { R } from '../../utils/transform';
 
 const client = new DynamoDBClient({ region: env.REGION });
 
@@ -15,7 +15,6 @@ const client = new DynamoDBClient({ region: env.REGION });
  */
 export const handler = async (): Promise<Response> => {
 	try {
-
 		const npe = '0000 0000 0000 0000 0000 0000 0000 0000';
 
 		const item = {
@@ -32,9 +31,8 @@ export const handler = async (): Promise<Response> => {
 		await client.send(new PutItemCommand(params));
 
 		return R(200, { message: 'CREATED', npe });
-
 	} catch (error: any) {
 		console.error(error);
-		return R(500, { message: 'Server Error', });
+		return R(500, { message: 'Server Error' });
 	}
 };

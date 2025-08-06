@@ -47,8 +47,8 @@ export default [
 			'no-console': [
 				'error',
 				{
-					allow: ['warn', 'error']
-				}
+					allow: ['warn', 'error'],
+				},
 			],
 			'no-debugger': 'error',
 			'@typescript-eslint/no-unused-vars': [
@@ -64,23 +64,33 @@ export default [
 					destructuredArrayIgnorePattern: '^_',
 				},
 			],
-			'semi': 'off',
+			'no-unused-vars': [
+				'error',
+				{
+					vars: 'all',
+					args: 'after-used',
+					caughtErrors: 'none',
+					ignoreRestSiblings: true,
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					destructuredArrayIgnorePattern: '^_',
+				},
+			],
+			semi: 'off',
 
 			// https://eslint.style/rules/
-        	'@stylistic/semi': ['error', 'always'],
+			'@stylistic/semi': ['error', 'always'],
 			'@stylistic/no-extra-semi': 'error',
 			'@stylistic/arrow-parens': ['error', 'as-needed'],
 			'@stylistic/quotes': [
 				'error',
 				'single',
 				{
-					'allowTemplateLiterals': 'always'
-				}
-			]
-
+					allowTemplateLiterals: 'always',
+				},
+			],
 		},
-		ignores: [
-			'**/*.js',
-		],
+		ignores: ['**/*.js'],
 	},
 ];

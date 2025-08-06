@@ -30,7 +30,5 @@
 			"files": ["*.ts"]
 		}
 	],
-	"ignorePatterns": [
-		"**/*.js"
-	]
+	"ignorePatterns": ["**/*.js"]
 }

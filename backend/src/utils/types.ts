@@ -8,7 +8,7 @@ export type Response = {
 
 export type Headers = {
 	[key: string]: string;
-}
+};
 
 export type SubscriptionResult = {
 	id: string;

@@ -78,7 +78,7 @@ export class InfrastructureStack extends Stack {
 
 		const createAndUpdateBillsPolicy = new PolicyStatement({
 			effect: Effect.ALLOW,
-			resources: [billsTable.tableArn, idempotencyTable.tableArn],
+			resources: [billsTable.tableArn,],
 			actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem'],
 		});
 
@@ -86,6 +86,12 @@ export class InfrastructureStack extends Stack {
 			effect: Effect.ALLOW,
 			resources: [billsTable.tableArn],
 			actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
+		});
+
+		const createIdempotencyPolicy = new PolicyStatement({
+			effect: Effect.ALLOW,
+			resources: [idempotencyTable.tableArn],
+			actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:GetItem', 'dynamodb:DeleteItem', 'dynamodb:Query'],
 		});
 
 		/**
@@ -103,6 +109,12 @@ export class InfrastructureStack extends Stack {
 			description: 'Role allowing list/find items in billsTable',
 		});
 
+		const idempotencyTableRole = new Role(this, 'IdempotencyTableRole', {
+			assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
+			roleName: 'IdempotencyTableRole',
+			description: 'Role allowing items GetItem/UpdateItem/GetItem/DeleteItem and Query in idempotencyTable',
+		});
+
 		/**
 		 * @description Attach policies to roles
 		 */
@@ -114,6 +126,7 @@ export class InfrastructureStack extends Stack {
 		);
 
 		billsTableWriterRole.addToPolicy(createAndUpdateBillsPolicy);
+		billsTableWriterRole.addToPolicy(createIdempotencyPolicy);
 
 		billsTableReaderRole.addManagedPolicy(
 			ManagedPolicy.fromAwsManagedPolicyName(
@@ -121,6 +134,14 @@ export class InfrastructureStack extends Stack {
 			)
 		);
 		billsTableReaderRole.addToPolicy(listBillsPolicy);
+
+
+		idempotencyTableRole.addManagedPolicy(
+			ManagedPolicy.fromAwsManagedPolicyName(
+				'service-role/AWSLambdaBasicExecutionRole'
+			)
+		);
+		idempotencyTableRole.addToPolicy(createIdempotencyPolicy);
 
 		const createBillsLambdaFunction = new Function(
 			this,

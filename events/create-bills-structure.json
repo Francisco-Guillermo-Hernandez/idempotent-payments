@@ -1,0 +1,16 @@
+{
+	"pendingPayments": [
+		{
+			"AmountToPay": 22.5,
+			"ServiceProvider": 1,
+			"TemplateCode": "ff339fa",
+			"CanExpire": true,
+			"ExpirationDate": 1754536721,
+			"ExtendedProperties": {
+				"UserContract": "200001511111",
+				"EmissionDate": "2025-07-06T20:24:35.235Z",
+				"ExpirationDate": "2025-08-06T20:24:35.235Z"
+			}
+		}
+	]
+}

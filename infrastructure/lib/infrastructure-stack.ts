@@ -18,8 +18,13 @@ import {
 import { Runtime, Code, Function } from 'aws-cdk-lib/aws-lambda';
 import { join } from 'path';
 // import { LambdaIntegration, RestApi, HttpIntegration, PassthroughBehavior, } from 'aws-cdk-lib/aws-apigateway';
-import { HttpApi, CorsHttpMethod, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpApi, CorsHttpMethod, HttpMethod, HttpStage, LogGroupLogDestination } from 'aws-cdk-lib/aws-apigatewayv2';
+import { CfnWebACL, } from 'aws-cdk-lib/aws-wafv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import { LogGroup } from 'aws-cdk-lib/aws-logs';
+import { AccessLogFormat } from 'aws-cdk-lib/aws-apigateway';
+import { Distribution, OriginProtocolPolicy, ViewerProtocolPolicy, OriginSslPolicy, AllowedMethods, OriginRequestPolicy, CachePolicy } from 'aws-cdk-lib/aws-cloudfront';
+import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 
 
 const distPath = '../../backend/production/';
@@ -234,11 +239,91 @@ export class InfrastructureStack extends Stack {
 			integration: new HttpLambdaIntegration('PayBillsLambdaFunctionHttpLambdaIntegration', payBillsLambdaFunction)
 		});
 
+
+		/**
+		 * @description
+		 *
+		 */
+		const webACL = new CfnWebACL(this, 'ApiRateLimitWAF', {
+			scope: 'CLOUDFRONT',
+			defaultAction: { allow: {} },
+			visibilityConfig: {
+				cloudWatchMetricsEnabled: true,
+				metricName: 'ApiRateLimit',
+				sampledRequestsEnabled: true,
+			},
+			rules: [
+				{
+					name: 'RateLimitRule',
+					priority: 1,
+					action: { block: {} },
+					statement: {
+						// means 100 request per IP per 5 minutes
+						rateBasedStatement: {
+							limit: 100,
+							evaluationWindowSec: 5 * 60,
+							aggregateKeyType: 'IP',
+						},
+					},
+					visibilityConfig: {
+						cloudWatchMetricsEnabled: true,
+						metricName: 'RateLimitRule',
+						sampledRequestsEnabled: true,
+					},
+				},
+			],
+		});
+
+		/**
+		 * @description Stage for production environment
+		 */
+		const productionStage = new HttpStage(this, 'ProductionStage', {
+			httpApi,
+			stageName: 'production',
+			autoDeploy: true,
+			accessLogSettings: {
+				destination: new LogGroupLogDestination(new LogGroup(this, 'ProductionStageLogGroup')),
+				format: AccessLogFormat.clf(),
+			},
+		});
+
+
+		/**
+		 * @description In order to use WAF with HTTP Gateway is necessary to create a distribution first,
+		 * because HttpApi doesn't have support yet
+		 */
+		new Distribution(this, 'BillsCloudFrontDistribution', {
+			defaultBehavior: {
+				origin: new HttpOrigin(`${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`, {
+					httpsPort: 443,
+					protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
+					originSslProtocols: [OriginSslPolicy.TLS_V1_2],
+					readTimeout: Duration.seconds(30),
+					keepaliveTimeout: Duration.seconds(5),
+				}),
+				viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+				allowedMethods: AllowedMethods.ALLOW_ALL,
+        		cachePolicy: CachePolicy.CACHING_DISABLED, // Disable caching for API responses
+        		originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+			},
+			enabled: true,
+			comment: `CloudFront distribution for ${httpApi.apiId}`,
+			webAclId: webACL.attrArn
+		});
+
+
+
+		//https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_apigatewayv2-readme.html
+
 		/**
 		 * @description
 		 */
 		new CfnOutput(this, 'ApiUrl', {
 			value: httpApi.apiEndpoint,
+		});
+
+		new CfnOutput(this,  'stage', {
+			value: productionStage.stageName
 		});
 	}
 }

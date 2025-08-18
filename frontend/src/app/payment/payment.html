@@ -1,0 +1,44 @@
+<div class="grid gap-4">
+  <h4 class="text-center" hlmH4>Pagá tu factura</h4>
+  <p class="text-sm text-gray-500">Utiliza tu tarjeta para pagar la factura</p>
+
+  <form class="grid gap-4" [formGroup]="form">
+    <div class="grid gap-2">
+      <label for="cardNumber" hlmLabel>Número de la tarjeta</label>
+      <input id="cardNumber" name="cardNumber" formControlName="cardNumber"  placeholder="1111-1111-1111-1111" hlmInput mask="9999-9999-9999-9999" />
+    </div>
+    <div class="grid gap-2">
+      <label for="cardHolder" hlmLabel>Titular de la tarjeta</label>
+      <input
+        id="cardHolder"
+        name="cardHolder"
+        formControlName="cardHolder"
+        placeholder="NOMBRE NOMBRE APELLIDO APELLIDO"
+        maxlength="60"
+        minlength="8"
+        hlmInput
+      />
+    </div>
+    <div class="grid sm:grid-cols-1 md:grid-cols-2 gap-4 xs:grid-cols-1">
+      <div class="grid gap-2 grid-cols-1 xs:w-full">
+        <label for="expiryDate" hlmLabel>Vencimiento</label>
+        <input
+          id="expiryDate"
+          name="expiryDate"
+          formControlName="expiryDate"
+          placeholder="01 / 29"
+          hlmInput
+          mask="M0/00"
+        />
+      </div>
+      <div class="grid gap-2 grid-cols-1 xs:w-full">
+        <label for="cvv" hlmLabel>CVV</label>
+        <input id="cvv" name="cvv" formControlName="cvv" placeholder="123" hlmInput mask="999" />
+      </div>
+    </div>
+
+    <div class="flex justify-end">
+       <button hlmBtn type="button" class=" w-full sm:w-full xs:w-full md:w-min" [disabled]="form.invalid"> Pagar</button>
+    </div>
+  </form>
+</div>

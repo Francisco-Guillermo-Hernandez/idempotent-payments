@@ -1,0 +1,18 @@
+<div class="grid gap-4 ">
+
+  @if (bill != null && !bill.PaymentStatus) {
+    <h4 hlmH4 class="text-center">Detalles de la factura</h4>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <div class="font-medium">Proveedor:</div>
+      <div hlmMuted class="text-right"> {{ bill.ServiceProvider }} </div>
+
+      <div class="font-medium">Fecha de vencimiento:</div>
+      @if(bill.ExpirationDate) {
+        <div hlmMuted class="text-right">{{ bill.ExpirationDate * 1000 | date: 'dd/MM/yyyy' }}</div>
+      }
+
+      <div class="font-medium">Monto a pagar:</div>
+      <div hlmMuted class="text-right">USD $ {{ bill.amount }}</div>
+    </div>
+  }
+</div>

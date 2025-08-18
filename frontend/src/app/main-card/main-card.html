@@ -1,0 +1,73 @@
+<div class="flex min-h-screen items-center justify-center bg-primary-foreground p-4">
+  <section class="w-full max-w-md" hlmCard>
+    <div hlmCardHeader>
+      <h3 hlmH3>Pagá tus facturas en un solo lugar</h3>
+      <p hlmCardDescription>Sin filas, y desde la comodidad de tu hogar.</p>
+    </div>
+
+    <div hlmCardContent class="grid gap-6">
+
+      <div class="grid gap-4 mb-4">
+        <h4 hlmH4 class="text-center">Consultá tu factura</h4>
+
+        <form class="grid gap-2" [formGroup]="form" (ngSubmit)="send()">
+          <label hlmLabel for="npe">NPE</label>
+          <div class="block grid-2 gap-2 xs:block sm:block md:flex ">
+            <input
+              type="text"
+              id="npe"
+              placeholder="0000-0000-000"
+              formControlName="npe"
+              required
+              hlmInput
+              class="w-full"
+            />
+
+            <button (click)="send()" hlmBtn
+              type="button"
+              [disabled]="form.invalid"
+              variant="secondary"
+              class="w-full xs:w-full sm:w-full md:w-fit xl:w-fit mt-6 xs:mt-6 sm:mt-6 md:mt-0 xl:mt-0">
+
+              @if (loading()) {
+                <span class="flex align-middle">
+                <hlm-spinner class="size-5" />
+                </span>
+              } @else {
+                <span>Comprobar</span>
+              }
+
+            </button>
+          </div>
+          <!-- <p hlmMuted>Ingresá tu número de pago electrónico</p> -->
+        </form>
+      </div>
+
+      @if (bill !== null && !bill.PaymentStatus) {
+        <div class="animate-fade-down animate-ease-in-out grid gap-6" >
+          <brn-separator hlmSeparator />
+
+          <bill-details></bill-details>
+
+          <brn-separator hlmSeparator />
+
+          <payment></payment>
+        </div>
+      }
+
+      @if (bill?.PaymentStatus) {
+        <div class="flex align-middle justify-center">
+          <span hlmMuted>Su recibo ya se encuentra pagado.</span>
+        </div>
+      }
+
+    </div>
+
+    <!-- <div hlmCardFooter class="flex justify-end">
+
+    </div> -->
+  </section>
+</div>
+
+
+<hlm-toaster richColors theme="dark" />

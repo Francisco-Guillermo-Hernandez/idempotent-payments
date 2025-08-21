@@ -44,7 +44,7 @@ export class InfrastructureStack extends Stack {
 				recoveryPeriodInDays: 30,
 			},
 			contributorInsights: true,
-			removalPolicy: RemovalPolicy.DESTROY,
+			removalPolicy: RemovalPolicy.DESTROY, //
 			deletionProtection: false, //
 			tags: [
 				{ key: 'Category', value: 'Electronic payment' },
@@ -54,7 +54,7 @@ export class InfrastructureStack extends Stack {
 
 		const billsTable = new TableV2(this, 'bills', {
 			partitionKey: {
-				name: 'npe',
+				name: 'NPE',
 				type: AttributeType.STRING,
 			},
 			tableClass: TableClass.STANDARD,
@@ -74,6 +74,8 @@ export class InfrastructureStack extends Stack {
         		type: AttributeType.STRING,
       		},
       		timeToLiveAttribute: 'expiration',
+			removalPolicy: RemovalPolicy.DESTROY,
+			deletionProtection: false, //
 			tags: [{ key: 'Category', value: 'Electronic payment' }],
     	});
 
@@ -84,7 +86,7 @@ export class InfrastructureStack extends Stack {
 		const createAndUpdateBillsPolicy = new PolicyStatement({
 			effect: Effect.ALLOW,
 			resources: [billsTable.tableArn,],
-			actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem'],
+			actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:BatchWriteItem'],
 		});
 
 		const listBillsPolicy = new PolicyStatement({

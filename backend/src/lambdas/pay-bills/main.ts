@@ -45,14 +45,14 @@ class Lambda implements LambdaInterface {
 			const params: UpdateItemCommandInput = {
 				TableName: env.PAYMENTS_TABLE_NAME,
 				Key: {
-					npe: { S: npe },
+					NPE: { S: npe },
 				},
 				ExpressionAttributeNames: {
-					'#PS': 'PaymentStatus',
+					'#PS': 'HasBeenPaid',
 					'#UD': 'UpdatedDate',
 				},
 				UpdateExpression: 'SET #PS = :status, #UD = :date',
-				ConditionExpression: 'attribute_exists(npe) AND #PS = :defaultStatus',
+				ConditionExpression: 'attribute_exists(NPE) AND #PS = :defaultStatus',
 				ExpressionAttributeValues: {
 					':status': { BOOL: true },
 					':date': { N: String(Math.floor(new Date().getTime() / 1000)), },
@@ -76,7 +76,7 @@ class Lambda implements LambdaInterface {
 			}
 		}
 	}
-	
+
 
 	// @logger.injectLambdaContext()
     // @metrics.logMetrics()

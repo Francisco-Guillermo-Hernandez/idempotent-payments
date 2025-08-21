@@ -10,6 +10,8 @@ export const NPERequestValidator = z.object({
 	npe: z.string().min(12, '').max(40, '').regex(/^\d+$/),
 });
 
+
+
 /**
  * @description Main validator for Create Bills Lambda
  */
@@ -80,3 +82,18 @@ export const createBillsRequestBodySchema = genericRequestSchemaParser(CreateBil
  */
 export type createBillsRequestBodyType = z.infer<typeof createBillsRequestBodySchema>;
 export type PendingPaymentSchemaType = z.infer<typeof PendingPaymentSchema>;
+
+
+/**
+ * @description
+ */
+
+export const CreditCardValidator = z.object({
+	amount: z.number().min(1, ''),
+	cvv: z.string(),
+	cardNumber: z.string(),
+	cardHolder: z.string(),
+	expiryDate: z.string(),
+});
+export const creditCardRequestBodySchema = genericRequestSchemaParser(CreditCardValidator);
+export type CreditCardRequestBodyType = z.infer<typeof creditCardRequestBodySchema>;

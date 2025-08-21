@@ -27,7 +27,7 @@ class Lambda implements LambdaInterface {
 	}
 
 	/**
-	 * @description
+	 * @description 
 	 * @param pendingPayments
 	 * @returns
 	 */
@@ -44,8 +44,16 @@ class Lambda implements LambdaInterface {
 			return await this.documentClient.send(new BatchWriteItemCommand(input));
 
 		} catch (error: any) {
-			console.error(error);
-			throw error;
+
+			if ( error.name === 'ValidationException') {
+				throw new Error('ValidationException', { cause: 'ValidationException' });
+			}
+
+			if (error.name === 'ConditionalCheckFailedException') {
+				throw new Error('ConditionExpression', { cause: 'ConditionalCheckFailedException' });
+			} else {
+				throw new Error(error);
+			}
 		}
 	}
 
@@ -80,21 +88,20 @@ class Lambda implements LambdaInterface {
 	/**
 	 * @description
 	 * @param data
-	 * @returns
+	 * @returns`
 	 */
 	public reMapIncoming(data: Array<PendingPaymentSchemaType>): Array<WriteRequest> {
 		return data.map(p => ({
 			PutRequest: {
-				ConditionExpression: 'attribute_not_exists(npe)',
+				ConditionExpression: 'attribute_not_exists(NPE)',
 				Item: marshall({
-					npe: this.generateNPE(p),
+					NPE: this.generateNPE(p),
 					AmountToPay: p.AmountToPay,
 					ServiceProvider: p.ServiceProvider,
-					TemplateCode: p.TemplateCode,
 					CanExpire: p.CanExpire,
 					ExpirationDate: p.ExpirationDate,
 					ExtendedProperties: p.ExtendedProperties,
-					PaymentStatus: false,
+					HasBeenPaid: false,
 					UpdatedDate: 0,
 					CreationDate: String(Math.floor(new Date().getTime() / 1000)),
 				}),
@@ -111,13 +118,15 @@ class Lambda implements LambdaInterface {
 				const pendingPayments = this.reMapIncoming(event.data.body.pendingPayments);
 
 				if (pendingPayments.length > 0) {
-					const { UnprocessedItems } = await this.create(pendingPayments);
+					const { UnprocessedItems, } = await this.create(pendingPayments);
+
+					console.warn(UnprocessedItems);
 
 					const elements = Object.keys(UnprocessedItems ?? {}).length;
 					if (elements === 0) {
-						return R(200, { message: 'Partial Success', UnprocessedItems });
+						return R(200, { message: 'Success' });
 					} else {
-						return R(200, { message: 'Success', UnprocessedItems });
+						return R(200, { message: 'Partial Success', UnprocessedItems });
 					}
 				} else {
 					return R(400, {
@@ -136,7 +145,11 @@ class Lambda implements LambdaInterface {
 			}
 
 		} catch (error: any) {
-			return R(500, { message: 'Server Error' });
+			if (error.cause === 'ConditionalCheckFailedException' || error.cause === 'ValidationException') {
+				return R(412, { message: 'Precondition Failed' });
+        	} else {
+				return R(500, { message: 'Server Error' });
+			}
 		}
 	}
 }
